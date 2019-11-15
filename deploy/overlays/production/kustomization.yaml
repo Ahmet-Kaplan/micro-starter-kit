@@ -1,14 +1,19 @@
-namespace: default
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: $(NS)
 namePrefix: prod-
+nameSuffix: -v1
 
 commonLabels:
   environment: production
+  app.kubernetes.io/version: v1
 commonAnnotations:
   note: Hello, I am production!
 
 bases:
-  - ../../bases
-  - resources
+  - ../../bases/micros
+  - ../../bases/etcd
 
 # enable mage-pull-policy and resource_limit as needed
 patches:
@@ -16,14 +21,18 @@ patches:
     target:
       kind: Deployment
       labelSelector: app.kubernetes.io/component=microservice
-#   - path: patches/resource_limit.yaml
-#     target:
-#       kind: Deployment
-#       labelSelector: app.kubernetes.io/component=microservice
-#   - path: patches/image-pull-policy-if-not-present.yaml
-#     target:
-#       kind: Deployment
-#       labelSelector: app.kubernetes.io/component=microservice
+  - path: patches/health-sidecar-only-for-proxy.yaml
+    target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/name=proxy
+  # - path: patches/resource_limit.yaml
+  #   target:
+  #     kind: Deployment
+  #     labelSelector: app.kubernetes.io/component=microservice
+  - path: patches/image-pull-policy-if-not-present.yaml
+    target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=microservice
 
 configMapGenerator:
   # - name: env-vars
@@ -31,10 +40,12 @@ configMapGenerator:
     behavior: merge
     literals:
       - APP_ENV=production
-      - MICRO_REGISTRY=consul
-      - MICRO_REGISTRY_ADDRESS="$(CONSUL_SERVICE_NAME):8500"
-      - MICRO_REGISTER_TTL="10"
-      - MICRO_REGISTER_INTERVAL="5"
+      - MICRO_LOG_LEVEL=info
+      # profile specific variables
+      - MICRO_REGISTRY=etcd
+      - MICRO_REGISTRY_ADDRESS="$(ETCD_SRV_ENDPOINT)-client"
+      - MICRO_REGISTER_TTL="60"
+      - MICRO_REGISTER_INTERVAL="30"
 
 secretGenerator:
   - name: secrets
@@ -47,14 +58,19 @@ replicas:
     count: 1
 
 images:
-  - name: progrium/consul
-    newTag: latest
-
-vars:
-  - name: CONSUL_SERVICE_NAME
-    objref:
-      kind: Service
-      name: consul
-      apiVersion: v1
-    fieldref:
-      fieldpath: metadata.name
+  - name: etcd
+    newTag: 3.3.15
+  - name: postgres
+    newTag: 11.5-alpine
+  - name: micro/micro
+    newName: docker.pkg.github.com/xmlking/micro-starter-kit/micro
+    newTag: v1.16.0
+  - name: xmlking/account-srv
+    newName: docker.pkg.github.com/xmlking/micro-starter-kit/account-srv
+    newTag: $(IMAGE_VERSION)
+  - name: xmlking/emailer-srv
+    newName: docker.pkg.github.com/xmlking/micro-starter-kit/emailer-srv
+    newTag: $(IMAGE_VERSION)
+  - name: xmlking/greeter-srv
+    newName: docker.pkg.github.com/xmlking/micro-starter-kit/greeter-srv
+    newTag: $(IMAGE_VERSION)

@@ -4,23 +4,22 @@ import (
 	"github.com/micro/cli"
 	"github.com/micro/go-micro"
 	"github.com/micro/go-micro/config"
+	"github.com/micro/go-micro/service/grpc"
 
-	// "github.com/micro/go-micro/service/grpc"
 	log "github.com/sirupsen/logrus"
 
+	myConfig "github.com/xmlking/micro-starter-kit/shared/config"
+	logger "github.com/xmlking/micro-starter-kit/shared/log"
+	logWrapper "github.com/xmlking/micro-starter-kit/shared/wrapper/log"
 	"github.com/xmlking/micro-starter-kit/srv/account/handler"
 	accountPB "github.com/xmlking/micro-starter-kit/srv/account/proto/account"
 	"github.com/xmlking/micro-starter-kit/srv/account/registry"
 	"github.com/xmlking/micro-starter-kit/srv/account/repository"
-
-	"github.com/xmlking/micro-starter-kit/shared/wrapper"
-
-	myConfig "github.com/xmlking/micro-starter-kit/shared/config"
-	_ "github.com/xmlking/micro-starter-kit/shared/log"
+	greeterPB "github.com/xmlking/micro-starter-kit/srv/greeter/proto/greeter"
 )
 
 const (
-	serviceName = "account-srv"
+	serviceName = "accountsrv"
 )
 
 var (
@@ -32,14 +31,13 @@ var (
 func main() {
 
 	// New Service
-	service := micro.NewService(
-		// service := grpc.NewService(
+	service := grpc.NewService(
 		// optional cli flag to override config.
 		// comment out if you don't need to override any base config via CLI
 		micro.Flags(
 			cli.StringFlag{
 				Name:        "configDir, d",
-				Value:       "config",
+				Value:       "/config",
 				Usage:       "Path to the config directory. Defaults to 'config'",
 				EnvVar:      "CONFIG_DIR",
 				Destination: &configDir,
@@ -53,7 +51,8 @@ func main() {
 			}),
 		micro.Name(serviceName),
 		micro.Version(myConfig.Version),
-		micro.WrapHandler(wrapper.LogWrapper),
+		micro.WrapHandler(logWrapper.NewHandlerWrapper()),
+		micro.WrapClient(logWrapper.NewClientWrapper()),
 	)
 
 	// Initialize service
@@ -62,6 +61,7 @@ func main() {
 			// load config
 			myConfig.InitConfig(configDir, configFile)
 			config.Scan(&cfg)
+			logger.InitLogger(cfg.Log)
 		}),
 	)
 
@@ -72,11 +72,17 @@ func main() {
 		log.Fatalf("failed to build container: %v", err)
 	}
 
-	// Publisher publish to "emailer-srv"
-	publisher := micro.NewPublisher("emailer-srv", service.Client())
+	log.Debugf("Client type: grpc or regular? %T\n", service.Client()) // FIXME: expected *grpc.grpcClient but got *micro.clientWrapper
+
+	// Publisher publish to "emailersrv"
+	emailerSrvEp := config.Get("emailersrv", "endpoint").String("emailersrv")
+	publisher := micro.NewPublisher(emailerSrvEp, service.Client())
+	// greeterSrv Client to call "greetersrv"
+	greeterSrvEp := config.Get("greetersrv", "endpoint").String("greetersrv")
+	greeterSrvClient := greeterPB.NewGreeterService(greeterSrvEp, service.Client())
 
 	// // Handlers
-	userHandler := handler.NewUserHandler(ctn.Resolve("user-repository").(repository.UserRepository), publisher)
+	userHandler := handler.NewUserHandler(ctn.Resolve("user-repository").(repository.UserRepository), publisher, greeterSrvClient)
 	profileHandler := ctn.Resolve("profile-handler").(accountPB.ProfileServiceHandler)
 
 	// Register Handlers

@@ -4,21 +4,19 @@ import (
 	"github.com/micro/cli"
 	"github.com/micro/go-micro"
 	"github.com/micro/go-micro/config"
+	"github.com/micro/go-micro/service/grpc"
 
-	// "github.com/micro/go-micro/service/grpc"
 	log "github.com/sirupsen/logrus"
 
+	myConfig "github.com/xmlking/micro-starter-kit/shared/config"
+	logger "github.com/xmlking/micro-starter-kit/shared/log"
+	logWrapper "github.com/xmlking/micro-starter-kit/shared/wrapper/log"
 	"github.com/xmlking/micro-starter-kit/srv/emailer/registry"
 	"github.com/xmlking/micro-starter-kit/srv/emailer/subscriber"
-
-	"github.com/xmlking/micro-starter-kit/shared/wrapper"
-
-	myConfig "github.com/xmlking/micro-starter-kit/shared/config"
-	_ "github.com/xmlking/micro-starter-kit/shared/log"
 )
 
 const (
-	serviceName = "emailer-srv"
+	serviceName = "emailersrv"
 )
 
 var (
@@ -30,14 +28,13 @@ var (
 func main() {
 
 	// New Service
-	service := micro.NewService(
-		// service := grpc.NewService(
+	service := grpc.NewService(
 		// optional cli flag to override config.
 		// comment out if you don't need to override any base config via CLI
 		micro.Flags(
 			cli.StringFlag{
 				Name:        "configDir, d",
-				Value:       "config",
+				Value:       "/config",
 				Usage:       "Path to the config directory. Defaults to 'config'",
 				EnvVar:      "CONFIG_DIR",
 				Destination: &configDir,
@@ -51,7 +48,8 @@ func main() {
 			}),
 		micro.Name(serviceName),
 		micro.Version(myConfig.Version),
-		micro.WrapHandler(wrapper.LogWrapper),
+		micro.WrapHandler(logWrapper.NewHandlerWrapper()),
+		micro.WrapSubscriber(logWrapper.NewSubscriberWrapper()),
 	)
 
 	// Initialize service
@@ -61,6 +59,7 @@ func main() {
 			// load config
 			myConfig.InitConfig(configDir, configFile)
 			config.Scan(&cfg)
+			logger.InitLogger(cfg.Log)
 		}),
 	)
 
@@ -73,13 +72,13 @@ func main() {
 
 	emailSubscriber := ctn.Resolve("emailer-subscriber") //.(subscriber.EmailSubscriber)
 	// Register Struct as Subscriber
-	micro.RegisterSubscriber("emailer-srv", service.Server(), emailSubscriber)
+	micro.RegisterSubscriber("emailersrv", service.Server(), emailSubscriber)
 
 	// Register Function as Subscriber
-	micro.RegisterSubscriber("emailer-srv", service.Server(), subscriber.Handler)
+	micro.RegisterSubscriber("emailersrv", service.Server(), subscriber.Handler)
 
 	// register subscriber with queue, each message is delivered to a unique subscriber
-	// micro.RegisterSubscriber("emailer-srv-2", service.Server(), subscriber.Handler, server.SubscriberQueue("queue.pubsub"))
+	// micro.RegisterSubscriber("emailersrv-2", service.Server(), subscriber.Handler, server.SubscriberQueue("queue.pubsub"))
 
 	myConfig.PrintBuildInfo()
 	// Run service

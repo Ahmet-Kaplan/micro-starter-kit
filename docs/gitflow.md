@@ -11,6 +11,11 @@
 ## Setup
 
 ```bash
+# install git-flow for mac
+brew install git-flow-avh
+```
+
+```bash
 # Start using git-flow by initializing it inside an existing git repository
 git flow init [-d] # The -d flag will accept all defaults.
 # Start a new feature
@@ -50,6 +55,15 @@ git push origin --tags
   git pull --all
   git merge develop
   ```
+
+- Ever annoyed by the long list of local Git branches that are no longer relevant?
+
+  Solution:
+
+  `git remote prune origin`
+
+  That removes all local branches that have been deleted from remote (typically GitHub)<br/>
+  Add --dry-run to merely see a list first to confirm.
 
 ## Reference
 

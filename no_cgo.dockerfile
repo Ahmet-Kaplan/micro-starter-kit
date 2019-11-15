@@ -14,7 +14,8 @@ RUN mkdir /user && \
 # Install the Certificate-Authority certificates for the app to be able to make
 # calls to HTTPS endpoints.
 # Git is required for fetching the dependencies.
-RUN apk add --no-cache ca-certificates git
+RUN apk add --no-cache ca-certificates git && \
+    rm -rf /var/cache/apk/* /tmp/*
 
 # Set the environment variables for the go command:
 # * CGO_ENABLED=0 to build a statically-linked executable
@@ -30,7 +31,8 @@ WORKDIR /src
 COPY ./go.mod ./go.sum ./
 # Get dependancies - will also be cached if we won't change mod/sum
 RUN go mod download && \
-    cd / &&  go get github.com/ahmetb/govvv && cd /src
+    GO111MODULE=off go get github.com/ahmetb/govvv && \
+    go install github.com/markbates/pkger/cmd/pkger
 
 # COPY the source code as the last step
 COPY ./ ./
@@ -40,6 +42,7 @@ ARG VERSION=0.0.1
 ARG TYPE=srv
 ARG TARGET=account
 
+RUN pkger -o $TYPE/$TARGET -include /config
 RUN go build -a \
     -ldflags="-w -s $(govvv -flags -version ${VERSION} -pkg $(go list ./shared/config) )" \
     -o /app ./$TYPE/$TARGET/main.go ./$TYPE/$TARGET/plugin.go
@@ -48,7 +51,7 @@ RUN go build -a \
 FROM scratch AS final
 
 # copy 1 MiB busybox executable
-COPY --from=busybox:1.31.0 /bin/busybox /bin/busybox
+COPY --from=busybox:1.31.1 /bin/busybox /bin/busybox
 
 # Import the user and group files from the first stage.
 COPY --from=builder /user/group /user/passwd /etc/
@@ -61,7 +64,7 @@ ARG VERSION=0.0.1
 ARG TYPE=srv
 ARG TARGET=account
 COPY --from=builder /app /app
-COPY --from=builder src/deploy/bases/${TARGET}-${TYPE}/config /config
+COPY --from=builder src/deploy/bases/micros/${TARGET}-${TYPE}/config /config
 
 # Declare the port on which the webserver will be exposed.
 # As we're going to run the executable as an unprivileged user, we can't bind

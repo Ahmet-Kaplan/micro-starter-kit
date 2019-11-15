@@ -4,11 +4,12 @@ import (
 	"github.com/micro/cli"
 	"github.com/micro/go-micro"
 	"github.com/micro/go-micro/config"
+	"github.com/micro/go-micro/service/grpc"
 	log "github.com/sirupsen/logrus"
 
 	myConfig "github.com/xmlking/micro-starter-kit/shared/config"
-	_ "github.com/xmlking/micro-starter-kit/shared/log"
-	"github.com/xmlking/micro-starter-kit/shared/wrapper"
+	logger "github.com/xmlking/micro-starter-kit/shared/log"
+	logWrapper "github.com/xmlking/micro-starter-kit/shared/wrapper/log"
 )
 
 const (
@@ -28,7 +29,7 @@ func init() {
 
 func main() {
 	// New Service
-	service := micro.NewService(
+	service := grpc.NewService(
 		// optional cli flag to override config.
 		// comment out if you don't need to override any base config via CLI
 		micro.Flags(
@@ -61,15 +62,16 @@ func main() {
 		),
 		micro.Name(serviceName),
 		micro.Version(myConfig.Version),
-		micro.WrapHandler(wrapper.LogWrapper),
+		micro.WrapHandler(logWrapper.NewHandlerWrapper()),
 	)
 
-	// Initialise service
+	// Initialize service
 	service.Init(
 		micro.Action(func(c *cli.Context) {
 			// load config
 			myConfig.InitConfig(configDir, configFile)
 			config.Scan(&cfg)
+			logger.InitLogger(cfg.Log)
 		}),
 	)
 

@@ -8,7 +8,7 @@ Showcase
 
 ## Configuration
 
-- FQDN: emailer-srv
+- FQDN: emailer_srv
 - Type: srv
 - Alias: emailer
 
@@ -34,4 +34,10 @@ Build a docker image
 
 ```bash
 make docker TARGET=emailer TYPE=srv VERSION=v0.1.1
+```
+
+Test the service
+
+```bash
+micro publish emailersrv  '{ "to" : "sumo@demo.com", "from": "demo@sumo.com", "subject": "sub", "body": "mybody"  }'
 ```
